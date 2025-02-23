@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Teachable Machine Visualization</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f7f9fb; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        button, input { padding: 10px; margin: 10px 0; }
+        #webcam-container, #image-container { margin-top: 20px; }
+        .prediction { margin: 8px 0; }
+        .progress { height: 24px; background-color: #e0e0e0; border-radius: 12px; overflow: hidden; }
+        .progress-bar { height: 100%; text-align: right; padding-right: 10px; color: white; line-height: 24px; }
+        .class-label { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Teachable Machine: Image Recognition</h2>
+
+        <button onclick="initWebcam()">Start Webcam</button>
+        <input type="file" accept="image/*" onchange="uploadImage(event)">
+
+        <div id="webcam-container"></div>
+        <div id="image-container"></div>
+
+        <div id="label-container"></div>
+    </div>
+
+    <script>
+        const MODEL_URL = "./my_model/";
+        let model, webcam, maxPredictions;
+
+        async function loadModel() {
+            const modelURL = MODEL_URL + "model.json";
+            const metadataURL = MODEL_URL + "metadata.json";
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+        }
+
+        async function initWebcam() {
+            await loadModel();
+            webcam = new tmImage.Webcam(200, 200, true);
+            await webcam.setup();
+            await webcam.play();
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            document.getElementById("image-container").innerHTML = "";
+            predictLoop();
+        }
+
+        async function predictLoop() {
+            webcam.update();
+            await predict(webcam.canvas);
+            requestAnimationFrame(predictLoop);
+        }
+
+        async function uploadImage(event) {
+            await loadModel();
+            const img = document.createElement("img");
+            img.src = URL.createObjectURL(event.target.files[0]);
+            img.width = 200;
+            img.onload = () => {
+                document.getElementById("image-container").innerHTML = "";
+                document.getElementById("image-container").appendChild(img);
+                document.getElementById("webcam-container").innerHTML = "";
+                predict(img);
+            };
+        }
+
+        async function predict(imageElement) {
+            const predictions = await model.predict(imageElement);
+            const labelContainer = document.getElementById("label-container");
+            labelContainer.innerHTML = "";
+
+            predictions.forEach(pred => {
+                const percent = (pred.probability * 100).toFixed(2);
+                const barColor = percent > 50 ? '#5cb85c' : '#f0ad4e';
+                labelContainer.innerHTML += `
+                    <div class="prediction">
+                        <div class="class-label">${pred.className} (${percent}%)</div>
+                        <div class="progress">
+                            <div class="progress-bar" style="width:${percent}%;background:${barColor}">${percent}%</div>
+                        </div>
+                    </div>`;
+            });
+        }
+    </script>
+</body>
+</html>
